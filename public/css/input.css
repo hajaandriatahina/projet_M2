@@ -1,0 +1,16 @@
+
+@import "tailwindcss";
+
+/* Scanner : CodeIgniter Views */
+@source "../../app";
+
+/* Configuration personnalisée */
+@theme {
+    --color-brand-50: #eff6ff;
+    --color-brand-500: #2563eb;
+    --color-brand-600: #1d4ed8;
+    --color-brand-700: #1e40af;
+    --color-brand-900: #172554;
+
+    --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+}
