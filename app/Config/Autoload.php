@@ -80,6 +80,7 @@ class Autoload extends AutoloadConfig
     /**
      * -------------------------------------------------------------------
      * Helpers
+     * 
      * -------------------------------------------------------------------
      * Prototype:
      *   $helpers = [
@@ -88,5 +89,5 @@ class Autoload extends AutoloadConfig
      *
      * @var list<string>
      */
-    public $helpers = [];
+    public $helpers = ['layout'];
 }

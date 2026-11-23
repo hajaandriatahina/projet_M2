@@ -46,26 +46,33 @@ if (! function_exists('ui_menu')) {
      * 'path' = route CodeIgniter (null = page pas encore créée -> lien "#").
      * Quand tu crées une page, remplace simplement null par sa route.
      */
-    function ui_menu(string $role): array
-    {
-        $home = UserModel::homeFor($role) ?? 'login';
+   function ui_menu(string $role): array
+{
+    $home   = UserModel::homeFor($role) ?? 'login';
+    $prefix = match ($role) {
+        'Administrateur' => 'admin',
+        'Directeur'      => 'directeur',
+        'Validateur'     => 'validateur',
+        'Utilisateur'    => 'utilisateur',
+        default          => 'login',
+    };
 
-        $dashboard  = ['label' => 'Tableau de bord',  'icon' => 'home',     'path' => $home];
-        $indicateurs = ['label' => 'Indicateurs KPI', 'icon' => 'chart',    'path' => null];
-        $saisie     = ['label' => 'Ma saisie',        'icon' => 'edit',     'path' => null];
-        $validation = ['label' => 'Validation',       'icon' => 'check',    'path' => null];
-        $rapports   = ['label' => 'Rapports',         'icon' => 'report',   'path' => null];
-        $utilisateurs = ['label' => 'Utilisateurs',   'icon' => 'users',    'path' => null];
-        $parametres = ['label' => 'Paramètres',       'icon' => 'settings', 'path' => null];
+    $dashboard   = ['label' => 'Tableau de bord', 'icon' => 'home',     'path' => $home];
+    $indicateurs = ['label' => 'Indicateurs KPI', 'icon' => 'chart',    'path' => $prefix . '/indicateurs'];
+    $parametres  = ['label' => 'Paramètres',      'icon' => 'settings', 'path' => 'admin/configuration'];
 
-        return match ($role) {
-            'Administrateur' => [$dashboard, $indicateurs, $utilisateurs, $validation, $rapports, $parametres],
-            'Directeur'      => [$dashboard, $indicateurs, $rapports],
-            'Validateur'     => [$dashboard, $validation, $indicateurs],
-            'Utilisateur'    => [$dashboard, $saisie, $indicateurs],
-            default          => [$dashboard],
-        };
-    }
+    return match ($role) {
+        'Administrateur' => [$dashboard, $indicateurs, $parametres],
+        'Directeur', 'Validateur' => [$dashboard, $indicateurs],
+        'Utilisateur'    => [
+            $dashboard,
+            ['label' => 'Mes KPI, Objectif', 'icon' => 'edit', 'path' => 'utilisateur/mes-kpi'],
+            ['label' => 'Notifications',     'icon' => 'bell', 'path' => 'utilisateur/notifications'],
+            ['label' => 'Mon profil',        'icon' => 'users', 'path' => 'utilisateur/profil'],
+        ],
+        default => [$dashboard],
+    };
+}
 }
 
 if (! function_exists('ui_url')) {

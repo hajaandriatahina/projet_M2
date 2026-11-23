@@ -13,6 +13,7 @@ $routes->get('logout', 'Auth::logout');
 // ---------- Une page par rôle (protégée par RoleFilter) ----------
 $routes->group('admin', ['filter' => 'role:Administrateur'], static function (RouteCollection $routes) {
     $routes->get('dashboard', 'Dashboard::administrateur');
+    
 });
 
 $routes->group('directeur', ['filter' => 'role:Directeur'], static function (RouteCollection $routes) {
@@ -23,6 +24,26 @@ $routes->group('validateur', ['filter' => 'role:Validateur'], static function (R
     $routes->get('dashboard', 'Dashboard::validateur');
 });
 
-$routes->group('utilisateur', ['filter' => 'role:Utilisateur'], static function (RouteCollection $routes) {
-    $routes->get('dashboard', 'Dashboard::utilisateur');
+$routes->group('utilisateur', ['filter' => 'role:Utilisateur', 'namespace' => 'App\Controllers\User'], static function (RouteCollection $routes) {
+    $routes->get('dashboard', 'Dashboard::index');
+    $routes->get('mes-kpi', 'MesKpi::index');
+    $routes->post('mes-kpi/enregistrer', 'MesKpi::enregistrer');
+    $routes->get('mes-kpi/historique', 'MesKpi::historique');
+    $routes->get('notifications', 'Notifications::index');
+    $routes->get('profil', 'Profil::index');
+    $routes->post('profil/modifier', 'Profil::modifier');
 });
+
+$routes->group('admin', ['namespace' => 'App\Controllers\Admin' ], function ($routes) {
+    $routes->post('users/store', 'Users::store');
+    $routes->post('users/update/(:num)', 'Users::update/$1');
+    $routes->post('users/delete/(:num)', 'Users::delete/$1');
+    $routes->get('indicateurs', 'Indicateurs::index');
+    $routes->post('indicateurs/store', 'Indicateurs::store');
+    $routes->post('indicateurs/update/(:num)', 'Indicateurs::update/$1');
+    $routes->post('indicateurs/delete/(:num)', 'Indicateurs::delete/$1');
+    $routes->get('configuration', 'Configuration::index');
+    $routes->post('configuration/save/(:num)', 'Configuration::save/$1');
+
+});
+
