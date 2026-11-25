@@ -12,6 +12,7 @@ class MesKpi extends BaseController
 
     private const MOIS_C = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
     private const MOIS_L = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+    private const JOURS  = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
 
     // =====================================================================
     //  AFFICHAGE
@@ -53,6 +54,22 @@ class MesKpi extends BaseController
             }
         }
 
+        // Dernier objectif connu par KPI (colonne « Objectif » du tableau)
+        $objectifs = [];
+        if ($kpis) {
+            $rows = $db->table('saisie_kpi')
+                ->select('id_configuration, valeur')
+                ->where('type', 'objectif')
+                ->whereIn('id_configuration', array_keys($kpis))
+                ->orderBy('date_saisie', 'DESC')
+                ->get()->getResultArray();
+            foreach ($rows as $r) {
+                if (! isset($objectifs[$r['id_configuration']])) {
+                    $objectifs[$r['id_configuration']] = $r['valeur'];
+                }
+            }
+        }
+
         // Historique (même fréquence, même type) — pas de filtre
         $hist = [];
         if ($kpis) {
@@ -83,6 +100,7 @@ class MesKpi extends BaseController
             'kpis'       => $kpis,
             'periode'    => $periode,
             'grid'       => $grid,
+            'objectifs'  => $objectifs,
             'hist'       => $hist,
         ]);
     }
@@ -203,7 +221,7 @@ class MesKpi extends BaseController
     private function kpisParFrequence(int $userId): array
     {
         $rows = db_connect()->table('configuration c')
-            ->select('c.id AS id_configuration, n.nom, n.unite, n.sqcdp, n.frequence')
+            ->select('c.id AS id_configuration, n.nom, n.unite, n.sqcdp, n.frequence, n.departement')
             ->join('nom_kpi n', 'n.id = c.id_nom')
             ->where('c.id_user', $userId)
             ->orderBy('n.sqcdp')->orderBy('n.nom')
@@ -229,83 +247,93 @@ class MesKpi extends BaseController
     }
 
     /** Colonnes de la grille + titre + liens précédent/suivant */
-    private function colonnes(string $freq, string $ref): array
-    {
-        $today = date('Y-m-d');
-        $hier  = date('Y-m-d', strtotime('-1 day'));
-        $cols  = [];
+   /** Colonnes de la grille + titre + liens précédent/suivant */
+/** Colonnes de la grille + titre + liens précédent/suivant */
+private function colonnes(string $freq, string $ref): array
+{
+    $today = date('Y-m-d');
+    $cols  = [];
 
-        if ($freq === 'journalier') {
-            // Les 7 jours de la semaine (lundi -> dimanche)
-            $lundi = strtotime('monday this week', strtotime($ref));
-            for ($i = 0; $i < 7; $i++) {
-                $ts = strtotime("+$i day", $lundi);
-                $d  = date('Y-m-d', $ts);
-                $cols[] = [
-                    'date'  => $d,
-                    'label' => $d === $today ? "Aujourd'hui" : ($d === $hier ? 'Hier' : $this->dFr($ts)),
-                    'sub'   => ($d === $today || $d === $hier) ? $this->dFr($ts) : '',
-                    'today' => $d === $today,
-                    'futur' => $d > $today,
-                ];
-            }
-            $dimanche = strtotime('+6 day', $lundi);
-            return [
-                'cols'  => $cols,
-                'titre' => 'Semaine du ' . $this->dCourt($lundi) . ' au ' . $this->dFr($dimanche),
-                'prev'  => date('Y-m-d', strtotime('-7 day', $lundi)),
-                'next'  => date('Y-m-d', strtotime('+7 day', $lundi)),
-            ];
-        }
+    // ---------- JOURNALIER : tous les jours du mois (comme dans l’image) ----------
+    if ($freq === 'journalier') {
+        $premier = strtotime(substr($ref, 0, 7) . '-01');
+        $nb      = (int) date('t', $premier);
 
-        if ($freq === 'hebdomadaire') {
-            // Les semaines du mois
-            $premier = strtotime(substr($ref, 0, 7) . '-01');
-            $dernier = strtotime(date('Y-m-t', $premier));
-            $debut   = strtotime('monday this week', $premier);
-            $n = 1;
-            while ($debut <= $dernier) {
-                $fin = strtotime('+6 day', $debut);
-                $d   = date('Y-m-d', $debut);
-                $cols[] = [
-                    'date'  => $d,
-                    'label' => 'S' . $n,
-                    'sub'   => $this->dCourt($debut) . ' – ' . $this->dCourt($fin),
-                    'today' => $today >= $d && $today <= date('Y-m-d', $fin),
-                    'futur' => $d > $today,
-                ];
-                $debut = strtotime('+7 day', $debut);
-                $n++;
-            }
-            return [
-                'cols'  => $cols,
-                'titre' => self::MOIS_L[(int) date('n', $premier) - 1] . ' ' . date('Y', $premier),
-                'prev'  => date('Y-m-d', strtotime('first day of previous month', $premier)),
-                'next'  => date('Y-m-d', strtotime('first day of next month', $premier)),
-            ];
-        }
-
-        // mensuel : les 12 mois de l'année
-        $annee = (int) substr($ref, 0, 4);
-        $moisCourant = date('Y-m-01');
-        for ($m = 1; $m <= 12; $m++) {
-            $d = sprintf('%04d-%02d-01', $annee, $m);
+        for ($j = 1; $j <= $nb; $j++) {
+            $d  = date('Y-m-', $premier) . sprintf('%02d', $j);
+            $ts = strtotime($d);
             $cols[] = [
-                'date'  => $d,
-                'label' => self::MOIS_L[$m - 1],
-                'sub'   => (string) $annee,
-                'today' => $d === $moisCourant,
-                'futur' => $d > $moisCourant,
+                'date'    => $d,
+                'label'   => (string) $j,                    // 1, 2, 3...
+                'sub'     => self::JOURS[(int) date('w', $ts)],
+                'today'   => $d === $today,
+                'futur'   => $d > $today,
+                'weekend' => in_array((int) date('w', $ts), [0, 6], true),
             ];
         }
+
         return [
             'cols'  => $cols,
-            'titre' => (string) $annee,
-            'prev'  => ($annee - 1) . '-01-01',
-            'next'  => ($annee + 1) . '-01-01',
+            'titre' => self::MOIS_L[(int) date('n', $premier) - 1] . ' ' . date('Y', $premier),
+            'prev'  => date('Y-m-d', strtotime('first day of previous month', $premier)),
+            'next'  => date('Y-m-d', strtotime('first day of next month', $premier)),
         ];
     }
 
+    // ---------- HEBDOMADAIRE : semaines des 3 derniers mois (S36 → S49) ----------
+    if ($freq === 'hebdomadaire') {
+        $premier  = strtotime(substr($ref, 0, 7) . '-01');
+        $dernier  = strtotime(date('Y-m-t', $premier));
+        $debutFen = strtotime('-2 months', $premier);
+        $debut    = strtotime('monday this week', $debutFen);
+
+        while ($debut <= $dernier) {
+            $fin = strtotime('+6 days', $debut);
+            $d   = date('Y-m-d', $debut);
+
+            $cols[] = [
+                'date'  => $d,
+                'label' => 'S' . date('W', $debut),          // S36, S37...
+                'sub'   => $this->dCourt($debut) . ' – ' . $this->dCourt($fin),
+                'today' => $today >= $d && $today <= date('Y-m-d', $fin),
+                'futur' => $d > $today,
+            ];
+            $debut = strtotime('+7 days', $debut);
+        }
+
+        $titre = self::MOIS_C[(int) date('n', $debutFen) - 1] . ' – ' .
+                 self::MOIS_C[(int) date('n', $premier) - 1] . ' ' . date('Y', $premier);
+
+        return [
+            'cols'  => $cols,
+            'titre' => $titre,
+            'prev'  => date('Y-m-d', strtotime('-3 months', $premier)),
+            'next'  => date('Y-m-d', strtotime('+3 months', $premier)),
+        ];
+    }
+
+    // ---------- MENSUEL : Janvier → Décembre (comme dans l’image) ----------
+    $annee       = (int) substr($ref, 0, 4);
+    $moisCourant = date('Y-m-01');
+
+    for ($m = 1; $m <= 12; $m++) {
+        $d = sprintf('%04d-%02d-01', $annee, $m);
+        $cols[] = [
+            'date'  => $d,
+            'label' => self::MOIS_L[$m - 1],                 // JANVIER, FÉVRIER...
+            'sub'   => (string) $annee,
+            'today' => $d === $moisCourant,
+            'futur' => $d > $moisCourant,
+        ];
+    }
+
+    return [
+        'cols'  => $cols,
+        'titre' => (string) $annee,
+        'prev'  => ($annee - 1) . '-01-01',
+        'next'  => ($annee + 1) . '-01-01',
+    ];
+}
     private function estFutur(string $freq, string $date, string $today): bool
     {
         if ($freq === 'mensuel') return $date > date('Y-m-01');
@@ -316,7 +344,7 @@ class MesKpi extends BaseController
     {
         $ts = strtotime($date);
         return match ($freq) {
-            'hebdomadaire' => 'Semaine du ' . $this->dFr($ts),
+            'hebdomadaire' => 'S' . date('W', $ts) . ' — ' . $this->dFr($ts),
             'mensuel'      => self::MOIS_L[(int) date('n', $ts) - 1] . ' ' . date('Y', $ts),
             default        => $this->dFr($ts),
         };

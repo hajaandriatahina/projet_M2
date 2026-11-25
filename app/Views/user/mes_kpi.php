@@ -1,6 +1,6 @@
 <?php
 // app/Views/user/mes_kpi.php
-// Layout : app/Views/layouts/user_layout.php (adaptez le nom si votre layout s'appelle autrement)
+// Layout : app/Views/layouts/user_layout.php
 
 $base = site_url('utilisateur/mes-kpi');
 $url  = static fn (array $p) => $base . '?' . http_build_query(array_merge(['freq' => $freq, 'type' => $type, 'ref' => $ref], $p));
@@ -8,6 +8,9 @@ $url  = static fn (array $p) => $base . '?' . http_build_query(array_merge(['fre
 $tabsDef = ['journalier' => 'Quotidien', 'hebdomadaire' => 'Hebdomadaire', 'mensuel' => 'Mensuel'];
 $fmt     = static fn ($v) => strpos((string) $v, '.') !== false ? rtrim(rtrim((string) $v, '0'), '.') : (string) $v;
 $estVrai = static fn ($v) => in_array($v, [true, 't', 'true', '1', 1], true);
+
+// Largeur des colonnes selon la fréquence
+$largeurCol = ['journalier' => 76, 'hebdomadaire' => 112, 'mensuel' => 120][$freq];
 
 $nbEditable = 0;
 $cols = $periode['cols'];
@@ -59,7 +62,7 @@ $cols = $periode['cols'];
     </span>
 </div>
 
-<!-- ============ Grille de saisie ============ -->
+<!-- ============ Tableau de saisie (même forme que le tableau directeur) ============ -->
 <form id="formSaisie" method="post" action="<?= site_url('utilisateur/mes-kpi/enregistrer') ?>" autocomplete="off">
     <?= csrf_field() ?>
     <input type="hidden" name="freq" value="<?= esc($freq) ?>">
@@ -71,17 +74,31 @@ $cols = $periode['cols'];
             Aucun KPI <?= esc(strtolower($tabsDef[$freq])) ?> ne vous est attribué.
         </div>
     <?php else: ?>
-        <div class="overflow-x-auto pb-2">
-            <table class="min-w-full" style="border-spacing: 8px 8px; border-collapse: separate;">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+            <table class="text-sm" style="border-collapse: separate; border-spacing: 0; min-width: 100%;">
                 <thead>
-                    <tr>
-                        <th class="min-w-[260px]"></th>
-                        <?php foreach ($cols as $c): ?>
-                            <th class="min-w-[130px] px-2 py-2 rounded-lg text-center text-sm font-semibold
-                                       <?= $c['today'] ? 'bg-slate-600 text-white' : 'bg-slate-200 text-slate-600' ?>">
-                                <?= esc($c['label']) ?>
+                    <tr class="bg-slate-50 text-slate-600 text-xs uppercase">
+                        <th class="text-left px-4 py-3 border-b border-slate-200"
+                            style="position:sticky; left:0; z-index:3; background:#f8fafc; min-width:140px; width:140px;">Département</th>
+                        <th class="text-left px-4 py-3 border-b border-r border-slate-200"
+                            style="position:sticky; left:140px; z-index:3; background:#f8fafc; min-width:230px; width:230px;">Nom du KPI</th>
+                        <th class="text-center px-3 py-3 border-b border-slate-200" style="min-width:90px;">Objectif</th>
+
+                        <?php foreach ($cols as $c):
+                            $weekend = $c['weekend'] ?? false;
+                            $cls = $c['today'] ? 'bg-slate-600 text-white' : ($weekend ? 'bg-slate-200 text-slate-600' : 'bg-slate-50 text-slate-600');
+                        ?>
+                            <th class="px-2 py-2 text-center font-semibold border-b border-l border-slate-200 <?= $cls ?>"
+                                style="min-width:<?= $largeurCol ?>px;">
+                                <?php if ($freq === 'hebdomadaire'): ?>
+                                    <!-- Icône sur chaque colonne de semaine -->
+                                    <svg class="w-4 h-4 mx-auto mb-1 <?= $c['today'] ? 'text-white' : 'text-indigo-500' ?>" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                        <rect x="3" y="5" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M3 10h18M8 3v4M16 3v4"/>
+                                    </svg>
+                                <?php endif; ?>
+                                <div class="text-sm"><?= esc($c['label']) ?></div>
                                 <?php if ($c['sub'] !== ''): ?>
-                                    <div class="text-[11px] font-normal opacity-80"><?= esc($c['sub']) ?></div>
+                                    <div class="text-[11px] font-normal normal-case opacity-80"><?= esc($c['sub']) ?></div>
                                 <?php endif; ?>
                             </th>
                         <?php endforeach; ?>
@@ -89,41 +106,40 @@ $cols = $periode['cols'];
                 </thead>
                 <tbody>
                     <?php foreach ($kpis as $idCfg => $k): ?>
-                        <tr class="bg-white">
-                            <td class="px-4 py-3 rounded-l-xl">
-                                <div class="flex items-center gap-3">
-                                    <svg class="w-8 h-8 shrink-0" viewBox="0 0 32 32" aria-hidden="true">
-                                        <circle cx="16" cy="16" r="14" fill="#38bdf8"/><circle cx="16" cy="16" r="10" fill="#fff"/>
-                                        <circle cx="16" cy="16" r="7" fill="#84cc16"/><circle cx="16" cy="16" r="3.5" fill="#fff"/>
-                                    </svg>
-                                    <div>
-                                        <p class="font-semibold text-slate-800 leading-tight"><?= esc($k['nom']) ?></p>
-                                        <?php if (! empty($k['unite'])): ?>
-                                            <p class="text-xs text-slate-400"><?= esc($k['unite']) ?></p>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
+                        <tr class="hover:bg-slate-50/60">
+                            <td class="px-4 py-3 text-slate-600 border-b border-slate-100"
+                                style="position:sticky; left:0; z-index:2; background:#fff;">
+                                <?= esc($k['departement'] ?? '—') ?>
+                            </td>
+                            <td class="px-4 py-3 border-b border-r border-slate-100"
+                                style="position:sticky; left:140px; z-index:2; background:#fff;">
+                                <p class="font-semibold text-slate-800 leading-tight"><?= esc($k['nom']) ?></p>
+                                <?php if (! empty($k['unite'])): ?>
+                                    <p class="text-xs text-slate-400"><?= esc($k['unite']) ?></p>
+                                <?php endif; ?>
+                            </td>
+                            <td class="px-3 py-3 text-center font-semibold text-amber-700 border-b border-slate-100">
+                                <?= isset($objectifs[$idCfg]) ? esc($fmt($objectifs[$idCfg])) : '—' ?>
                             </td>
 
-                            <?php foreach ($cols as $i => $c):
+                            <?php foreach ($cols as $c):
                                 $saved  = $grid[$idCfg][$c['date']] ?? null;
                                 $locked = $saved && $estVrai($saved['verrouille']);
                                 $bloqueFutur = ($type === 'valeur' && $c['futur']);
-                                $last = $i === count($cols) - 1;
                             ?>
-                                <td class="px-1 py-3 <?= $last ? 'rounded-r-xl' : '' ?> <?= $c['today'] ? 'bg-indigo-50/60' : '' ?>">
+                                <td class="px-1.5 py-2 border-b border-l border-slate-100 <?= $c['today'] ? 'bg-indigo-50/60' : '' ?>">
                                     <?php if ($locked): ?>
                                         <input type="text" value="<?= esc($fmt($saved['valeur'])) ?>" disabled
                                                title="Donnée verrouillée"
-                                               class="w-full h-11 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 text-center font-medium cursor-not-allowed">
+                                               class="w-full h-10 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 text-center font-medium cursor-not-allowed">
                                     <?php elseif ($bloqueFutur): ?>
                                         <input type="text" disabled placeholder="—" title="Période à venir"
-                                               class="w-full h-11 rounded-lg border border-slate-100 bg-slate-50 text-center cursor-not-allowed">
+                                               class="w-full h-10 rounded-lg border border-slate-100 bg-slate-50 text-center cursor-not-allowed">
                                     <?php else: $nbEditable++; ?>
                                         <input type="text" inputmode="decimal" data-saisie
                                                name="cells[<?= (int) $idCfg ?>][<?= esc($c['date']) ?>]"
                                                value="<?= $saved ? esc($fmt($saved['valeur'])) : '' ?>"
-                                               class="w-full h-11 rounded-lg border border-cyan-400 bg-white text-center font-medium
+                                               class="w-full h-10 rounded-lg border border-cyan-400 bg-white text-center font-medium
                                                       focus:outline-none focus:ring-2 focus:ring-cyan-300">
                                     <?php endif; ?>
                                 </td>
@@ -134,7 +150,7 @@ $cols = $periode['cols'];
             </table>
         </div>
 
-        <div class="flex flex-col items-end gap-2 mt-2">
+        <div class="flex flex-col items-end gap-2 mt-3">
             <p id="msgSaisie" class="hidden text-sm text-rose-600"></p>
             <?php if ($nbEditable === 0): ?>
                 <p class="text-sm text-slate-500">Toutes les données de cette période sont verrouillées.</p>
