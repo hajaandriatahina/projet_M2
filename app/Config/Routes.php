@@ -17,7 +17,9 @@ $routes->group('admin', ['filter' => 'role:Administrateur'], static function (Ro
 });
 
 $routes->group('directeur', ['filter' => 'role:Directeur'], static function (RouteCollection $routes) {
-    $routes->get('dashboard', 'Dashboard::directeur');
+    $routes->get('dashboard', 'Directeur::dashboard');
+    $routes->get('rapports', 'Directeur::rapports');
+    $routes->get('planning', 'Directeur::planning');
 });
 
 $routes->group('validateur', ['filter' => 'role:Validateur'], static function (RouteCollection $routes) {

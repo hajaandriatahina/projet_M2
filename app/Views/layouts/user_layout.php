@@ -32,7 +32,8 @@ $menu = [
     ['key' => 'mes-kpi',       'label' => 'Mes KPI, Objectif', 'url' => site_url('utilisateur/mes-kpi'),       'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
     ['key' => 'notifications', 'label' => 'Notifications',    'url' => site_url('utilisateur/notifications'), 'icon' => 'M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'],
     ['key' => 'profil',        'label' => 'Mon profil',       'url' => site_url('utilisateur/profil'),        'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
-];
+]; 
+
 ?>
 <!DOCTYPE html>
 <html lang="fr">
