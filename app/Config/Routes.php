@@ -34,6 +34,10 @@ $routes->group('utilisateur', ['filter' => 'role:Utilisateur', 'namespace' => 'A
     $routes->get('notifications', 'Notifications::index');
     $routes->get('profil', 'Profil::index');
     $routes->post('profil/modifier', 'Profil::modifier');
+    $routes->get('plan-action', 'PlanAction::index');
+    $routes->get('rapport', 'Rapport::index');
+$routes->post('plan-action/enregistrer', 'PlanAction::enregistrer');
+$routes->post('plan-action/supprimer',   'PlanAction::supprimer');
 });
 
 $routes->group('admin', ['namespace' => 'App\Controllers\Admin' ], function ($routes) {

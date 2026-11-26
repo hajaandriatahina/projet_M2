@@ -9,6 +9,15 @@ $tabsDef = ['journalier' => 'Quotidien', 'hebdomadaire' => 'Hebdomadaire', 'mens
 $fmt     = static fn ($v) => strpos((string) $v, '.') !== false ? rtrim(rtrim((string) $v, '0'), '.') : (string) $v;
 $estVrai = static fn ($v) => in_array($v, [true, 't', 'true', '1', 1], true);
 
+// Couleur d'une cellule du tableau de suivi (comme l'interface directeur) : vert = objectif atteint, rouge = non atteint
+// Ajoutez n.sens dans le select de kpisParFrequence() si votre table nom_kpi a une colonne « sens » (min / max)
+$etat = static function (array $k, $v, $obj): string {
+    if ($v === null || $obj === null) return '';
+    $obj = (float) $obj;
+    $bon = (($k['sens'] ?? 'max') === 'min') ? $v <= $obj : $v >= $obj;
+    return $bon ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+};
+
 // Largeur des colonnes selon la fréquence
 $largeurCol = ['journalier' => 76, 'hebdomadaire' => 112, 'mensuel' => 120][$freq];
 
@@ -62,7 +71,7 @@ $cols = $periode['cols'];
     </span>
 </div>
 
-<!-- ============ Tableau de saisie (même forme que le tableau directeur) ============ -->
+<!-- ============ Grille de saisie (input) ============ -->
 <form id="formSaisie" method="post" action="<?= site_url('utilisateur/mes-kpi/enregistrer') ?>" autocomplete="off">
     <?= csrf_field() ?>
     <input type="hidden" name="freq" value="<?= esc($freq) ?>">
@@ -164,44 +173,45 @@ $cols = $periode['cols'];
     <?php endif; ?>
 </form>
 
-<!-- ============ Historique ============ -->
+<!-- ============ Tableau « Données » sous le bouton Enregistrer (même forme que l'interface directeur) ============ -->
 <div class="mt-8 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-        <h3 class="font-semibold text-slate-700">
-            Historique — <?= esc($tabsDef[$freq]) ?> (<?= $type === 'valeur' ? 'KPI' : 'Objectif' ?>)
-        </h3>
-        <span class="text-xs text-slate-500"><?= count($hist) ?> dernière<?= count($hist) > 1 ? 's' : '' ?> saisie<?= count($hist) > 1 ? 's' : '' ?></span>
+        <h3 class="font-semibold text-slate-700">Données</h3>
+        <span class="text-xs text-slate-500"><?= count($kpis) ?> KPI — <?= esc($tabsDef[$freq]) ?></span>
     </div>
     <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+        <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
                 <tr>
-                    <th class="text-left px-5 py-3">Période</th>
-                    <th class="text-left px-5 py-3">KPI</th>
-                    <th class="text-right px-5 py-3">Valeur</th>
-                    <th class="text-left px-5 py-3 pl-8">Saisi le</th>
-                    <th class="text-center px-5 py-3">Statut</th>
+                    <th class="p-3 text-left">Département</th>
+                    <th class="p-3 text-left">Nom du KPI</th>
+                    <th class="p-3 text-center">Objectif</th>
+                    <?php foreach ($cols as $c): ?>
+                        <th class="p-3 text-center">
+                            <?php if ($freq === 'hebdomadaire'): ?>
+                                <svg class="w-4 h-4 mx-auto mb-1 text-indigo-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <rect x="3" y="5" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M3 10h18M8 3v4M16 3v4"/>
+                                </svg>
+                            <?php endif; ?>
+                            <?= esc($c['label']) ?>
+                        </th>
+                    <?php endforeach; ?>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-                <?php if (empty($hist)): ?>
-                    <tr><td colspan="5" class="px-5 py-8 text-center text-slate-400">Aucune donnée enregistrée pour le moment.</td></tr>
+                <?php if (empty($kpis)): ?>
+                    <tr><td class="p-8 text-center text-slate-400" colspan="<?= count($cols) + 3 ?>">Aucun KPI ne vous est attribué pour cette fréquence</td></tr>
                 <?php endif; ?>
-                <?php foreach ($hist as $h): ?>
+                <?php foreach ($kpis as $idCfg => $k):
+                    $obj = $objectifs[$idCfg] ?? null; ?>
                     <tr class="hover:bg-slate-50">
-                        <td class="px-5 py-3 text-slate-700"><?= esc($h['periode']) ?></td>
-                        <td class="px-5 py-3 font-medium text-slate-800"><?= esc($h['nom']) ?></td>
-                        <td class="px-5 py-3 text-right font-semibold">
-                            <?= esc($fmt($h['valeur'])) ?> <span class="text-xs font-normal text-slate-400"><?= esc($h['unite'] ?? '') ?></span>
-                        </td>
-                        <td class="px-5 py-3 pl-8 text-slate-500"><?= esc($h['cree']) ?></td>
-                        <td class="px-5 py-3 text-center">
-                            <?php if ($estVrai($h['verrouille'])): ?>
-                                <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">🔒 Verrouillé</span>
-                            <?php else: ?>
-                                <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Déverrouillé</span>
-                            <?php endif; ?>
-                        </td>
+                        <td class="p-3 text-slate-600"><?= esc($k['departement'] ?? '') ?></td>
+                        <td class="p-3 font-medium text-slate-800"><?= esc($k['nom']) ?></td>
+                        <td class="p-3 text-center font-semibold"><?= $obj !== null ? esc($fmt($obj)) : '—' ?></td>
+                        <?php foreach ($cols as $c):
+                            $v = $valeurs[$idCfg][$c['date']] ?? null; ?>
+                            <td class="p-3 text-center <?= $etat($k, $v, $obj) ?>"><?= $v !== null ? esc($fmt($v)) : '-' ?></td>
+                        <?php endforeach; ?>
                     </tr>
                 <?php endforeach; ?>
             </tbody>

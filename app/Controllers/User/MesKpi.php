@@ -70,24 +70,18 @@ class MesKpi extends BaseController
             }
         }
 
-        // Historique (même fréquence, même type) — pas de filtre
-        $hist = [];
-        if ($kpis) {
-            $hist = $db->table('saisie_kpi s')
-                ->select('s.date_saisie, s.valeur, s.verrouille, s.date_creation, n.nom, n.unite')
-                ->join('configuration c', 'c.id = s.id_configuration')
-                ->join('nom_kpi n', 'n.id = c.id_nom')
-                ->where('s.type', $type)
-                ->whereIn('s.id_configuration', array_keys($kpis))
-                ->orderBy('s.date_saisie', 'DESC')
-                ->orderBy('n.nom', 'ASC')
-                ->limit(60)
+        // Valeurs saisies par CET utilisateur (tableau « Données » sous le bouton Enregistrer : toujours type « valeur »)
+        $valeurs = [];
+        if ($kpis && $dates) {
+            $rows = $db->table('saisie_kpi')
+                ->select('id_configuration, date_saisie, valeur')
+                ->where('type', 'valeur')
+                ->whereIn('id_configuration', array_keys($kpis))
+                ->whereIn('date_saisie', $dates)
                 ->get()->getResultArray();
-            foreach ($hist as &$h) {
-                $h['periode'] = $this->libellePeriode($freq, $h['date_saisie']);
-                $h['cree']    = date('d/m/Y H:i', strtotime($h['date_creation']));
+            foreach ($rows as $r) {
+                $valeurs[$r['id_configuration']][$r['date_saisie']] = (float) $r['valeur'];
             }
-            unset($h);
         }
 
         return view('user/mes_kpi', [
@@ -101,7 +95,7 @@ class MesKpi extends BaseController
             'periode'    => $periode,
             'grid'       => $grid,
             'objectifs'  => $objectifs,
-            'hist'       => $hist,
+            'valeurs'    => $valeurs,
         ]);
     }
 
@@ -247,93 +241,83 @@ class MesKpi extends BaseController
     }
 
     /** Colonnes de la grille + titre + liens précédent/suivant */
-   /** Colonnes de la grille + titre + liens précédent/suivant */
-/** Colonnes de la grille + titre + liens précédent/suivant */
-private function colonnes(string $freq, string $ref): array
-{
-    $today = date('Y-m-d');
-    $cols  = [];
+    private function colonnes(string $freq, string $ref): array
+    {
+        $today = date('Y-m-d');
+        $cols  = [];
 
-    // ---------- JOURNALIER : tous les jours du mois (comme dans l’image) ----------
-    if ($freq === 'journalier') {
-        $premier = strtotime(substr($ref, 0, 7) . '-01');
-        $nb      = (int) date('t', $premier);
-
-        for ($j = 1; $j <= $nb; $j++) {
-            $d  = date('Y-m-', $premier) . sprintf('%02d', $j);
-            $ts = strtotime($d);
-            $cols[] = [
-                'date'    => $d,
-                'label'   => (string) $j,                    // 1, 2, 3...
-                'sub'     => self::JOURS[(int) date('w', $ts)],
-                'today'   => $d === $today,
-                'futur'   => $d > $today,
-                'weekend' => in_array((int) date('w', $ts), [0, 6], true),
+        // ---------- JOURNALIER : tous les jours du mois (1 -> dernier jour) ----------
+        if ($freq === 'journalier') {
+            $premier = strtotime(substr($ref, 0, 7) . '-01');
+            $nb      = (int) date('t', $premier);
+            for ($j = 1; $j <= $nb; $j++) {
+                $d  = date('Y-m-', $premier) . sprintf('%02d', $j);
+                $ts = strtotime($d);
+                $cols[] = [
+                    'date'    => $d,
+                    'label'   => (string) $j,
+                    'sub'     => self::JOURS[(int) date('w', $ts)],
+                    'today'   => $d === $today,
+                    'futur'   => $d > $today,
+                    'weekend' => in_array((int) date('w', $ts), [0, 6], true),
+                ];
+            }
+            return [
+                'cols'  => $cols,
+                'titre' => self::MOIS_L[(int) date('n', $premier) - 1] . ' ' . date('Y', $premier),
+                'prev'  => date('Y-m-d', strtotime('first day of previous month', $premier)),
+                'next'  => date('Y-m-d', strtotime('first day of next month', $premier)),
             ];
         }
 
-        return [
-            'cols'  => $cols,
-            'titre' => self::MOIS_L[(int) date('n', $premier) - 1] . ' ' . date('Y', $premier),
-            'prev'  => date('Y-m-d', strtotime('first day of previous month', $premier)),
-            'next'  => date('Y-m-d', strtotime('first day of next month', $premier)),
-        ];
-    }
+        // ---------- HEBDOMADAIRE : les semaines des 3 mois (ex. S36 ... S49) ----------
+        if ($freq === 'hebdomadaire') {
+            $premier  = strtotime(substr($ref, 0, 7) . '-01');   // dernier mois de la fenêtre
+            $dernier  = strtotime(date('Y-m-t', $premier));
+            $debutFen = strtotime('-2 month', $premier);
+            $debut    = strtotime('monday this week', $debutFen);
+            while ($debut <= $dernier) {
+                $fin = strtotime('+6 day', $debut);
+                $d   = date('Y-m-d', $debut);
+                $cols[] = [
+                    'date'  => $d,
+                    'label' => 'S' . date('W', $debut),
+                    'sub'   => $this->dCourt($debut) . ' – ' . $this->dCourt($fin),
+                    'today' => $today >= $d && $today <= date('Y-m-d', $fin),
+                    'futur' => $d > $today,
+                ];
+                $debut = strtotime('+7 day', $debut);
+            }
+            $titre = self::MOIS_C[(int) date('n', $debutFen) - 1] . ' – ' . self::MOIS_C[(int) date('n', $premier) - 1] . ' ' . date('Y', $premier);
+            return [
+                'cols'  => $cols,
+                'titre' => $titre,
+                'prev'  => date('Y-m-d', strtotime('-3 month', $premier)),
+                'next'  => date('Y-m-d', strtotime('+3 month', $premier)),
+            ];
+        }
 
-    // ---------- HEBDOMADAIRE : semaines des 3 derniers mois (S36 → S49) ----------
-    if ($freq === 'hebdomadaire') {
-        $premier  = strtotime(substr($ref, 0, 7) . '-01');
-        $dernier  = strtotime(date('Y-m-t', $premier));
-        $debutFen = strtotime('-2 months', $premier);
-        $debut    = strtotime('monday this week', $debutFen);
-
-        while ($debut <= $dernier) {
-            $fin = strtotime('+6 days', $debut);
-            $d   = date('Y-m-d', $debut);
-
+        // ---------- MENSUEL : les 12 mois de l'année ----------
+        $annee = (int) substr($ref, 0, 4);
+        $moisCourant = date('Y-m-01');
+        for ($m = 1; $m <= 12; $m++) {
+            $d = sprintf('%04d-%02d-01', $annee, $m);
             $cols[] = [
                 'date'  => $d,
-                'label' => 'S' . date('W', $debut),          // S36, S37...
-                'sub'   => $this->dCourt($debut) . ' – ' . $this->dCourt($fin),
-                'today' => $today >= $d && $today <= date('Y-m-d', $fin),
-                'futur' => $d > $today,
+                'label' => self::MOIS_L[$m - 1],
+                'sub'   => (string) $annee,
+                'today' => $d === $moisCourant,
+                'futur' => $d > $moisCourant,
             ];
-            $debut = strtotime('+7 days', $debut);
         }
-
-        $titre = self::MOIS_C[(int) date('n', $debutFen) - 1] . ' – ' .
-                 self::MOIS_C[(int) date('n', $premier) - 1] . ' ' . date('Y', $premier);
-
         return [
             'cols'  => $cols,
-            'titre' => $titre,
-            'prev'  => date('Y-m-d', strtotime('-3 months', $premier)),
-            'next'  => date('Y-m-d', strtotime('+3 months', $premier)),
+            'titre' => (string) $annee,
+            'prev'  => ($annee - 1) . '-01-01',
+            'next'  => ($annee + 1) . '-01-01',
         ];
     }
 
-    // ---------- MENSUEL : Janvier → Décembre (comme dans l’image) ----------
-    $annee       = (int) substr($ref, 0, 4);
-    $moisCourant = date('Y-m-01');
-
-    for ($m = 1; $m <= 12; $m++) {
-        $d = sprintf('%04d-%02d-01', $annee, $m);
-        $cols[] = [
-            'date'  => $d,
-            'label' => self::MOIS_L[$m - 1],                 // JANVIER, FÉVRIER...
-            'sub'   => (string) $annee,
-            'today' => $d === $moisCourant,
-            'futur' => $d > $moisCourant,
-        ];
-    }
-
-    return [
-        'cols'  => $cols,
-        'titre' => (string) $annee,
-        'prev'  => ($annee - 1) . '-01-01',
-        'next'  => ($annee + 1) . '-01-01',
-    ];
-}
     private function estFutur(string $freq, string $date, string $today): bool
     {
         if ($freq === 'mensuel') return $date > date('Y-m-01');
